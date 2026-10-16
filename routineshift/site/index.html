@@ -1,0 +1,356 @@
+<title>RoutineShift</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single reading column anchored by a real day timeline; sections read like a planner page, times set in mono. */
+:root {
+  --paper: #f2f4f1;
+  --sheet: #ffffff;
+  --ink: #18211c;
+  --muted: #56625b;
+  --line: #d5dcd6;
+  --busy: #c9d1cb;
+  --free: #2742c9;
+  --free-soft: #e3e8fb;
+  --ai: #8a4fd0;
+  --ai-soft: #f0e8fa;
+  --ok: #1f7a4a;
+  --ok-soft: #e1f2e8;
+  --warn: #9a5b00;
+  --warn-soft: #fbefd9;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --f-body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #111613; --sheet: #182019; --ink: #e5ebe6; --muted: #9fada4; --line: #2c372f;
+    --busy: #34403a; --free: #8fa3ff; --free-soft: #1d2440; --ai: #c3a0f2; --ai-soft: #2a2038;
+    --ok: #72d39d; --ok-soft: #173024; --warn: #f0b860; --warn-soft: #33270f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #111613; --sheet: #182019; --ink: #e5ebe6; --muted: #9fada4; --line: #2c372f;
+  --busy: #34403a; --free: #8fa3ff; --free-soft: #1d2440; --ai: #c3a0f2; --ai-soft: #2a2038;
+  --ok: #72d39d; --ok-soft: #173024; --warn: #f0b860; --warn-soft: #33270f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 60rem; margin: 0 auto; padding-block: 3rem 4rem; display: grid; gap: 4.5rem; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.1; }
+h2 { font-size: clamp(1.6rem, 3.2vw, 2.1rem); font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0; max-width: 65ch; }
+.eyebrow { font: 600 0.75rem/1 var(--f-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+section { display: grid; gap: 1.25rem; }
+a { color: var(--free); }
+:focus-visible { outline: 3px solid var(--free); outline-offset: 2px; }
+
+/* Hero */
+.hero { display: grid; gap: 1.5rem; }
+.hero h1 { font-size: clamp(3rem, 9vw, 6rem); font-weight: 800; letter-spacing: -0.035em; }
+.hero h1 .shift { color: var(--free); }
+.lede { font-size: clamp(1.2rem, 2.4vw, 1.45rem); line-height: 1.45; max-width: 40ch; }
+.tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tag { font: 600 0.78rem/1 var(--f-mono); padding: 0.45rem 0.65rem; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--sheet); }
+
+/* Timeline */
+.day { background: var(--sheet); border: 1px solid var(--line); border-radius: 14px; padding: 1.25rem; display: grid; gap: 1rem; }
+.day-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0.5rem 1.5rem; }
+.day-head p { color: var(--muted); font-size: 0.95rem; }
+.big { font: 800 2.4rem/1 var(--f-display); color: var(--free); }
+.big small { font: 600 0.85rem var(--f-mono); color: var(--muted); margin-left: 0.35rem; }
+.scroll { overflow-x: auto; }
+.track { position: relative; min-width: 640px; height: 132px; }
+.axis { position: absolute; left: 0; right: 0; bottom: 0; height: 22px; border-top: 1px solid var(--line); }
+.tick { position: absolute; top: 4px; transform: translateX(-50%); font: 400 0.7rem var(--f-mono); color: var(--muted); }
+.blk { position: absolute; top: 8px; height: 88px; border-radius: 6px; padding: 6px; overflow: hidden; font-size: 0.72rem; line-height: 1.25; }
+.blk.busy { background: repeating-linear-gradient(135deg, var(--busy) 0 6px, transparent 6px 11px); border: 1px solid var(--busy); color: var(--ink); }
+.blk.free { background: var(--free-soft); border: 2px solid var(--free); color: var(--free); font-family: var(--f-mono); font-weight: 600; }
+.blk.off { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 0.9rem; height: 0.9rem; border-radius: 3px; vertical-align: -2px; margin-right: 0.4rem; }
+.lg-busy::before { background: repeating-linear-gradient(135deg, var(--busy) 0 3px, transparent 3px 6px); border: 1px solid var(--busy); }
+.lg-free::before { background: var(--free-soft); border: 2px solid var(--free); }
+.note { font-size: 0.85rem; color: var(--muted); }
+
+/* Brief facts */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.fact { background: var(--sheet); padding: 1.1rem 1.2rem; display: grid; gap: 0.4rem; align-content: start; min-width: 0; }
+.fact p { font-size: 0.95rem; }
+
+/* Workflow */
+.flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: step; }
+.flow li { display: grid; grid-template-columns: 3.2rem 1fr auto; gap: 0.25rem 1rem; align-items: start; padding: 0.95rem 0; border-top: 1px solid var(--line); }
+.flow li:last-child { border-bottom: 1px solid var(--line); }
+.flow .id { font: 600 0.85rem/1.6 var(--f-mono); color: var(--muted); }
+.flow .what { min-width: 0; display: grid; gap: 0.15rem; }
+.flow .what strong { font-weight: 600; }
+.flow .what span { color: var(--muted); font-size: 0.93rem; }
+.who { font: 600 0.72rem/1 var(--f-mono); padding: 0.4rem 0.55rem; border-radius: 6px; white-space: nowrap; justify-self: end; }
+.who.code { background: var(--paper); color: var(--muted); border: 1px solid var(--line); }
+.who.ai { background: var(--ai-soft); color: var(--ai); }
+.who.human { background: var(--ok-soft); color: var(--ok); }
+.flow li.ai-row .id { color: var(--ai); }
+@media (max-width: 560px) {
+  .flow li { grid-template-columns: 2.6rem 1fr; }
+  .who { grid-column: 2; justify-self: start; }
+}
+
+/* Checks */
+.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.6rem 2rem; list-style: none; margin: 0; padding: 0; }
+.checks li { display: grid; grid-template-columns: 1.4rem 1fr; gap: 0.5rem; font-size: 0.97rem; min-width: 0; }
+.checks li::before { content: "✓"; font: 700 0.95rem/1.6 var(--f-mono); color: var(--ok); }
+.callout { background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.25rem; display: grid; gap: 0.4rem; }
+
+/* Output anatomy */
+.outputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; }
+.out { border-top: 3px solid var(--ink); padding-top: 0.75rem; display: grid; gap: 0.35rem; align-content: start; min-width: 0; }
+.out.start { border-top-color: var(--free); }
+.out p { font-size: 0.95rem; color: var(--muted); }
+
+/* Two-column compare */
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; }
+.pane { background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; padding: 1.2rem; display: grid; gap: 0.5rem; align-content: start; min-width: 0; }
+.pane p { font-size: 0.97rem; }
+.level { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.lv { font: 600 0.75rem/1 var(--f-mono); padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+.lv.on { background: var(--ai); border-color: var(--ai); color: var(--sheet); }
+
+/* Status */
+.status { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+.stat { border-radius: 12px; padding: 1.1rem 1.2rem; display: grid; gap: 0.35rem; align-content: start; min-width: 0; }
+.stat.ok { background: var(--ok-soft); }
+.stat.warn { background: var(--warn-soft); }
+.stat .num { font: 800 2rem/1 var(--f-display); font-variant-numeric: tabular-nums; }
+.stat.ok .num { color: var(--ok); }
+.stat.warn .num { color: var(--warn); }
+.stat p { font-size: 0.93rem; }
+
+/* Run */
+.cmd { background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.cmd-bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--line); }
+.cmd pre { margin: 0; padding: 1rem; overflow-x: auto; font: 400 0.88rem/1.7 var(--f-mono); }
+.cmd pre .c { color: var(--muted); }
+button.copy { font: 600 0.78rem var(--f-mono); padding: 0.4rem 0.7rem; border-radius: 6px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; }
+button.copy:hover { border-color: var(--free); color: var(--free); }
+
+.limits { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.35rem; max-width: 65ch; }
+footer { border-top: 1px solid var(--line); padding-top: 1.25rem; color: var(--muted); font-size: 0.88rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .blk.free { animation: pulse 2.4s ease-in-out 0.4s 1 both; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--free-soft); } 50% { box-shadow: 0 0 0 6px var(--free-soft); } 100% { box-shadow: 0 0 0 0 var(--free-soft); } }
+}
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">BUS4498 Mini AI Build-a-thon · Option 1</span>
+    <h1>Routine<span class="shift">Shift</span></h1>
+    <p class="lede">Your shift ran late and a meeting appeared. RoutineShift helps a student keep the habits that matter, even in a smaller version, when the day changes.</p>
+    <div class="tags">
+      <span class="tag">Python · Streamlit</span>
+      <span class="tag">Anthropic Claude · claude-opus-5-5</span>
+      <span class="tag">Level 2 intelligent automation</span>
+    </div>
+  </header>
+
+  <section aria-labelledby="day-h">
+    <div class="day">
+      <div class="day-head">
+        <div>
+          <span class="eyebrow">Fictional example · Sam's changed day</span>
+          <h3 id="day-h" style="margin-top:.4rem">The app finds the free time first, without AI</h3>
+        </div>
+        <div class="big" aria-label="155 free minutes">155<small>free min</small></div>
+      </div>
+      <div class="scroll" role="img" aria-label="Timeline from 07:00 to 22:00. Busy: commute 08:15 to 09:00, class 09:00 to 10:50, group meeting 10:50 to 11:40, extended café shift 12:00 to 19:00, commute home 19:00 to 19:30, dinner 19:30 to 20:30. Free: 07:30 to 08:15, 11:40 to 12:00, 20:30 to 22:00.">
+        <div class="track" id="track"></div>
+      </div>
+      <div class="legend"><span class="lg-busy">Fixed commitment</span><span class="lg-free">Free window the plan must fit inside</span></div>
+      <p class="note">Sam has five habits: Spanish flashcards, a run, quiz review, journaling and guitar. At usual length they need more time than these 155 minutes leave, once you add a journaling estimate and breathing room. Something has to shrink or wait, and the plan has to say so.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="brief-h">
+    <span class="eyebrow">The brief</span>
+    <h2 id="brief-h">Who it helps and where it stops</h2>
+    <div class="facts">
+      <div class="fact"><span class="eyebrow">Beneficiary</span><p>A student whose classes, work shifts or surprise events changed today's available time.</p></div>
+      <div class="fact"><span class="eyebrow">Outcome</span><p>High-priority habits survive the day, at least in a minimum version, and the student knows the first thing to do.</p></div>
+      <div class="fact"><span class="eyebrow">Proposed measure</span><p>Share of days with at least one High-priority habit done, compared over two weeks. Proposed, not yet measured.</p></div>
+      <div class="fact"><span class="eyebrow">Boundary</span><p>Plans one day from what the student types. No calendar edits, reminders, messages or medical advice. The student decides.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="flow-h">
+    <span class="eyebrow">Workflow</span>
+    <h2 id="flow-h">One AI step inside rules we control</h2>
+    <p>Trigger: the student presses <strong>Generate</strong>. Endpoint: a checked plan on screen, or a clear error and no plan.</p>
+    <ol class="flow">
+      <li><span class="id">T1</span><span class="what"><strong>Collect inputs, assign stable IDs</strong><span>Habits become H1, H2 and so on, and keep those IDs through edits and regenerations.</span></span><span class="who code">App code</span></li>
+      <li><span class="id">T2</span><span class="what"><strong>Validate inputs</strong><span>Missing names, impossible times, minimum longer than usual and no free time are all caught before any AI call.</span></span><span class="who code">App code</span></li>
+      <li><span class="id">T3</span><span class="what"><strong>Compute free windows</strong><span>Day window minus commitments gives the hard time budget.</span></span><span class="who code">App code</span></li>
+      <li class="ai-row"><span class="id">T4</span><span class="what"><strong>Generate the adjusted plan</strong><span>Claude receives SKILL.md plus the inputs and returns JSON in a fixed schema. It decides full, shortened, minimum or deferred for each habit.</span></span><span class="who ai">Claude model</span></li>
+      <li><span class="id">T5</span><span class="what"><strong>Check the plan</strong><span>Every rule below is checked in code. If a check fails, the app makes one repair request listing the errors, then shows an error.</span></span><span class="who code">App code</span></li>
+      <li><span class="id">T6</span><span class="what"><strong>Show for review and export</strong><span>Start here, timed schedule, reasons, deferred list, assumptions, and a Markdown download.</span></span><span class="who code">App code</span></li>
+      <li><span class="id">H1</span><span class="what"><strong>Review and decide</strong><span>Follow it, edit inputs and regenerate, or ignore it.</span></span><span class="who human">Student</span></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="checks-h">
+    <span class="eyebrow">Guardrails</span>
+    <h2 id="checks-h">What the code checks before you see a plan</h2>
+    <ul class="checks">
+      <li>Every habit ID is one the student entered</li>
+      <li>Every block has a positive number of minutes</li>
+      <li>Total planned minutes ≤ free minutes</li>
+      <li>Each block sits inside one free window</li>
+      <li>No two blocks overlap</li>
+      <li>All required output fields are present</li>
+      <li>Each habit is scheduled or deferred</li>
+      <li>"Start here" is the earliest block</li>
+      <li>A "full" block is never shorter than the usual length</li>
+      <li>No claim that everything fits when it doesn't</li>
+      <li>"Your estimate" appears only on numbers the student actually gave</li>
+    </ul>
+    <div class="callout">
+      <h3>If it goes wrong, it says so</h3>
+      <p>A missing key, a provider error, a refusal or a plan that fails twice all end in a plain error message. The app never swaps in a canned plan, and the example data only fills the form.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="out-h">
+    <span class="eyebrow">Output</span>
+    <h2 id="out-h">What the student gets back</h2>
+    <div class="outputs">
+      <div class="out start"><h3>Start here</h3><p>One concrete first action with its time, for example "open the flashcard app", not "study".</p></div>
+      <div class="out"><h3>Timed schedule</h3><p>Start time, habit, version and minutes. Each block is labelled "your estimate" or "AI estimate".</p></div>
+      <div class="out"><h3>Why this order</h3><p>A short explanation of the trade-offs between priority, preferred time and energy.</p></div>
+      <div class="out"><h3>Deferred</h3><p>What doesn't fit today, why, and a suggestion for when.</p></div>
+      <div class="out"><h3>Assumptions and gaps</h3><p>Every estimate the model made, and the questions it could not answer.</p></div>
+      <div class="out"><h3>Markdown file</h3><p>The plan as shown on screen, ready to keep in notes.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="design-h">
+    <span class="eyebrow">Design choices</span>
+    <h2 id="design-h">Why Level 2, and who does what</h2>
+    <div class="pair">
+      <div class="pane">
+        <h3>Level 2 intelligent automation</h3>
+        <div class="level" aria-label="Automation level 2 of 3"><span class="lv">L1 rules</span><span class="lv on">L2 intelligent</span><span class="lv">L3 adaptive</span></div>
+        <p>The model makes judgment calls in one fixed step. It has no tools, cannot change the workflow, cannot loop on its own and cannot act in the world. Code decides when it runs, what counts as valid and that it gets one retry. That is not Level 3.</p>
+      </div>
+      <div class="pane">
+        <h3>Coding assistant vs. app model</h3>
+        <p><strong>Claude Code</strong> helped write the code, tests and documents at build time. It is not part of the running app.</p>
+        <p><strong>Claude via the API</strong> runs inside the app on each Generate, using the team's own key on the server side.</p>
+      </div>
+      <div class="pane">
+        <h3>Reusable instructions: SKILL.md</h3>
+        <p>Inputs, procedure, priority rules, output schema, boundaries and missing-information handling live in one readable file. The app loads it into every request. It is a plain instruction file, not an installed Claude Code skill.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="status-h">
+    <span class="eyebrow">Test status · 2026-10-16</span>
+    <h2 id="status-h">What is verified, and what isn't yet</h2>
+    <div class="status">
+      <div class="stat ok"><span class="num">44 / 44</span><strong>Automated tests passed</strong><p>Inputs, free-time math, every guardrail, one-repair limit, provider failures, missing key, Markdown export. These tests use made-up (mocked) model responses.</p></div>
+      <div class="stat ok"><span class="num">✓</span><strong>App runs in a browser</strong><p>Example loads, 155 free minutes computed, and Generate without a key shows an honest error.</p></div>
+      <div class="stat warn"><span class="num">Pending</span><strong>Live model run</strong><p>No API key was available during the build, so plan quality and response time are still to be checked before the demo.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="run-h">
+    <span class="eyebrow">Run it locally</span>
+    <h2 id="run-h">Setup and launch</h2>
+    <p>Needs Python 3.10+ and an Anthropic API key from the Claude Console. A Claude.ai or Claude Code subscription does not include API access.</p>
+    <div class="cmd">
+      <div class="cmd-bar"><span class="eyebrow">Terminal · macOS / Linux</span><button class="copy" id="copy-btn" type="button">Copy</button></div>
+<pre id="cmd-text">cd routineshift
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env      <span class="c"># then add your key to .env</span>
+streamlit run app.py</pre>
+    </div>
+  </section>
+
+  <section aria-labelledby="lim-h">
+    <span class="eyebrow">Limitations</span>
+    <h2 id="lim-h">What it doesn't do</h2>
+    <ul class="limits">
+      <li>Plans one day at a time, with no streak history or learning from past days.</li>
+      <li>Durations the model invents are estimates. The app labels them but cannot verify them.</li>
+      <li>Code checks structure, time math and honesty. People judge whether the plan is good.</li>
+      <li>Same-day times only, with no overnight shifts. Travel time counts only if entered as a commitment.</li>
+      <li>Needs internet and a paid API key, and each plan costs a small amount.</li>
+      <li>Not tested with real students yet. Not a medical or mental-health tool.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <span>RoutineShift · BUS4498 in-class build</span>
+    <span class="mono">Example data is fictional</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var START = 7 * 60, END = 22 * 60;
+  var busy = [["Commute", "08:15", "09:00"], ["BUS 4498 class", "09:00", "10:50"], ["Group meeting (new)", "10:50", "11:40"],
+              ["Café shift (extended)", "12:00", "19:00"], ["Commute", "19:00", "19:30"], ["Dinner", "19:30", "20:30"]];
+  var free = [["07:30", "08:15"], ["11:40", "12:00"], ["20:30", "22:00"]];
+  var m = function (t) { var p = t.split(":"); return +p[0] * 60 + +p[1]; };
+  var pct = function (x) { return ((x - START) / (END - START) * 100) + "%"; };
+  var track = document.getElementById("track");
+  function add(cls, a, b, label) {
+    var d = document.createElement("div");
+    d.className = "blk " + cls;
+    d.style.left = pct(m(a));
+    d.style.width = "calc(" + ((m(b) - m(a)) / (END - START) * 100) + "% - 2px)";
+    d.title = label + " " + a + "–" + b;
+    if (m(b) - m(a) >= (cls === "free" ? 40 : 60)) d.textContent = label;  // short blocks: label in tooltip and aria text
+    track.appendChild(d);
+  }
+  add("off", "07:00", "07:30", "");
+  busy.forEach(function (b) { add("busy", b[1], b[2], b[0]); });
+  free.forEach(function (f) { add("free", f[0], f[1], (m(f[1]) - m(f[0])) + "m"); });
+  var axis = document.createElement("div");
+  axis.className = "axis";
+  for (var h = 7; h <= 22; h++) {
+    var t = document.createElement("span");
+    t.className = "tick";
+    t.style.left = pct(h * 60);
+    t.textContent = (h < 10 ? "0" : "") + h;
+    axis.appendChild(t);
+  }
+  track.appendChild(axis);
+
+  var btn = document.getElementById("copy-btn");
+  btn.addEventListener("click", function () {
+    var text = document.getElementById("cmd-text").innerText;
+    var done = function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1600); };
+    var fallback = function () {
+      var r = document.createRange(); r.selectNodeContents(document.getElementById("cmd-text"));
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = "Selected, press Ctrl/⌘+C";
+    };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  });
+})();
+</script>
