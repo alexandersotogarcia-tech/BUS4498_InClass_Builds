@@ -35,8 +35,11 @@
 
   <section class="board-section" aria-labelledby="boardTitle">
     <div class="board-head">
-      <h2 id="boardTitle">Coming up</h2>
-      <button type="button" class="ghost" id="refreshBtn">Refresh</button>
+      <h2 id="boardTitle">Coming up 🎉</h2>
+      <div class="filters">
+        <button type="button" class="chip" id="foodChip" aria-pressed="false">🍕 Free food only</button>
+        <button type="button" class="ghost" id="refreshBtn">Refresh</button>
+      </div>
     </div>
     <p id="boardStatus" class="muted" role="status"></p>
     <ul id="board" class="board"></ul>
