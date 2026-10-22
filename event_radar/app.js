@@ -34,7 +34,11 @@
   function fmtDate(d) {
     if (!d) return "Date to be announced";
     var p = d.split("-");
-    return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    var dt = new Date(+p[0], +p[1] - 1, +p[2]), t0 = new Date();
+    t0.setHours(0, 0, 0, 0);
+    var diff = Math.round((dt - t0) / 86400000);
+    var base = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    return diff === 0 ? "Today! " + base : diff === 1 ? "Tomorrow · " + base : base;
   }
   function fmtTime(t) {
     if (!t) return "";
@@ -85,13 +89,35 @@
       .order("event_date", { ascending: true, nullsFirst: false })
       .order("start_time", { ascending: true, nullsFirst: false })
       .then(function (res) {
-        var list = $("board");
-        list.textContent = "";
-        if (res.error) { $("boardStatus").textContent = "Couldn't load events: " + res.error.message; return; }
-        res.data.forEach(function (ev) { list.appendChild(card(ev)); });
-        if (!res.data.length) list.appendChild(el("li", "empty", "No events yet. Post the first one!"));
-        $("boardStatus").textContent = res.data.length ? res.data.length + (res.data.length === 1 ? " event" : " events") : "";
+        if (res.error) { $("board").textContent = ""; $("boardStatus").textContent = "Couldn't load events: " + res.error.message; return; }
+        allEvents = res.data;
+        renderBoard();
       });
+  }
+  var allEvents = [], foodOnly = false;
+  function renderBoard() {
+    var list = $("board");
+    list.textContent = "";
+    var shown = allEvents.filter(function (ev) { return !foodOnly || ev.free_food; });
+    shown.forEach(function (ev) { list.appendChild(card(ev)); });
+    if (!shown.length) list.appendChild(el("li", "empty", foodOnly ? "No free food right now. Check back soon! 🍕" : "No events yet. Post the first one! 🎉"));
+    $("boardStatus").textContent = shown.length ? shown.length + (shown.length === 1 ? " event" : " events") + (foodOnly ? " with free food" : "") : "";
+  }
+  $("foodChip").addEventListener("click", function () {
+    foodOnly = !foodOnly;
+    this.setAttribute("aria-pressed", String(foodOnly));
+    renderBoard();
+  });
+  function confetti() {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var bits = ["🎉", "🍕", "✨", "🎊", "🎲"];
+    for (var i = 0; i < 24; i++) {
+      var s = el("span", "confetti", bits[i % bits.length]);
+      s.style.left = Math.random() * 100 + "vw";
+      s.style.animationDelay = Math.random() * 0.6 + "s";
+      document.body.appendChild(s);
+      setTimeout(s.remove.bind(s), 3200);
+    }
   }
 
   /* ---------- posting: send it to the AI agent ---------- */
@@ -129,7 +155,7 @@
       })
       .then(function (data) {
         showResult(data);
-        if (data.ok) { form.reset(); loadBoard(); }
+        if (data.ok) { form.reset(); loadBoard(); if (data.status === "published") confetti(); }
       })
       .catch(function () { showResult({ ok: false, message: "Couldn't reach the agent. Check your internet connection and the Project URL in config.js." }); })
       .then(function () { btn.disabled = false; btn.textContent = "Post it"; });
