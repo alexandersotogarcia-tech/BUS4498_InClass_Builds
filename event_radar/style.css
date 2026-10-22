@@ -140,3 +140,14 @@ button.ghost:hover { border-color: var(--accent); box-shadow: none; }
   .flyer { grid-column: 1 / -1; width: 100%; height: 190px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+
+/* ---------- extra fun (added after the starter styles) ---------- */
+.confetti { position: fixed; top: -2rem; font-size: 1.7rem; pointer-events: none; z-index: 50; animation: confetti-fall 2.6s ease-in forwards; }
+@keyframes confetti-fall { to { transform: translateY(110vh) rotate(420deg); } }
+.top h1 { background: linear-gradient(90deg, var(--accent-ink), var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.badges li { transition: transform .15s; }
+.badges li:hover { transform: translateY(-2px) rotate(-1deg); }
+.board-head .filters { align-items: center; }
+.event:hover { box-shadow: 0 10px 28px rgba(226, 85, 43, .18); }
+.date { box-shadow: 0 4px 12px rgba(226, 85, 43, .3); }
