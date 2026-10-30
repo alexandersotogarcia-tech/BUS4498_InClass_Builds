@@ -141,6 +141,16 @@
     }
   }
 
+  // Short-term memory: this browser remembers the sender's last few messages and hands them to the agent,
+  // so a follow-up like "actually, 8 pm" completes the message before it.
+  var RECENT_KEY = "eventRadarRecent";
+  function recentMessages() {
+    try { return JSON.parse(sessionStorage.getItem(RECENT_KEY) || "[]").slice(-5); } catch (_) { return []; }
+  }
+  function rememberMessage(text) {
+    try { sessionStorage.setItem(RECENT_KEY, JSON.stringify(recentMessages().concat(text).slice(-5))); } catch (_) { /* optional */ }
+  }
+
   $("postForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var form = $("postForm"), btn = $("postBtn");
@@ -148,14 +158,17 @@
     if (photo && photo.size > 5 * 1024 * 1024) { showResult({ ok: false, message: "The photo must be 5 MB or smaller." }); return; }
     btn.disabled = true;
     btn.textContent = "The agent is reading it…";
+    var body = new FormData(form), sent = $("announcement").value.trim();
+    var earlier = recentMessages();
+    if (earlier.length) body.append("recent_messages", JSON.stringify(earlier));
     // The publishable key goes on the apikey header only (never as an Authorization bearer token).
-    fetch(AGENT_URL, { method: "POST", headers: { apikey: cfg.publishableKey }, body: new FormData(form) })
+    fetch(AGENT_URL, { method: "POST", headers: { apikey: cfg.publishableKey }, body: body })
       .then(function (r) {
         return r.json().catch(function () { return { ok: false, message: "The agent didn't answer (" + r.status + "). Is the function deployed?" }; });
       })
       .then(function (data) {
         showResult(data);
-        if (data.ok) { form.reset(); loadBoard(); if (data.status === "published") confetti(); }
+        if (data.ok) { rememberMessage(sent); form.reset(); loadBoard(); if (data.status === "published") confetti(); }
       })
       .catch(function () { showResult({ ok: false, message: "Couldn't reach the agent. Check your internet connection and the Project URL in config.js." }); })
       .then(function () { btn.disabled = false; btn.textContent = "Post it"; });
@@ -176,8 +189,40 @@
     if (session) {
       $("modWho").textContent = session.user.email;
       loadWaiting();
+      loadLessons();
     }
   }
+  /* ---------- lessons: one-sentence notes the agent reads before every decision ---------- */
+  function loadLessons() {
+    db.from("lessons").select("id, lesson, created_at").order("created_at", { ascending: false })
+      .then(function (res) {
+        var list = $("lessonList");
+        list.textContent = "";
+        if (res.error) { $("lessonStatus").textContent = "Couldn't load lessons: " + res.error.message; return; }
+        res.data.forEach(function (l) {
+          var li = el("li", "lesson");
+          li.appendChild(el("span", null, l.lesson + " "));
+          var del = el("button", "ghost", "Delete");
+          del.type = "button";
+          del.addEventListener("click", function () {
+            db.from("lessons").delete().eq("id", l.id).then(loadLessons);
+          });
+          li.appendChild(del);
+          list.appendChild(li);
+        });
+        $("lessonStatus").textContent = res.data.length ? "" : "No lessons yet.";
+      });
+  }
+  $("lessonForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var text = $("lessonText").value.trim();
+    if (!text || !session) return;
+    db.from("lessons").insert({ lesson: text, created_by: session.user.email }).then(function (res) {
+      if (res.error) { $("lessonStatus").textContent = "Couldn't save that: " + res.error.message; return; }
+      $("lessonText").value = "";
+      loadLessons();
+    });
+  });
   function review(ev, status) {
     db.from("events")
       .update({ status: status, reviewed_at: new Date().toISOString(), reviewed_by: session.user.email })

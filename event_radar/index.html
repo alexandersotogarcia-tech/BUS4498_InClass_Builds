@@ -59,6 +59,15 @@
         <h3>Waiting for review</h3>
         <p id="waitingStatus" class="muted" role="status"></p>
         <ul id="waitingList" class="board"></ul>
+        <h3>Lessons for the agent</h3>
+        <p class="muted">One sentence each. The agent reads every lesson before it decides on a post.</p>
+        <form id="lessonForm">
+          <label for="lessonText">New lesson</label>
+          <input id="lessonText" type="text" maxlength="300" required placeholder="Example: Game Night posts from Board Game Guild are always in UU Room 220.">
+          <button type="submit">Save lesson</button>
+        </form>
+        <p id="lessonStatus" class="muted" role="status"></p>
+        <ul id="lessonList"></ul>
       </div>
     </details>
   </section>
