@@ -368,11 +368,16 @@ Deno.serve(async (req) => {
     let announcement = "";
     let photo: Photo | null = null;
     let recent: string[] = [];
+    // Stage 14: a post that came from a chat group says which message it was, so it is never decided twice.
+    let source = "", sourceId = "", sourceName = "";
     const type = req.headers.get("content-type") ?? "";
     if (type.includes("application/json")) {
       const body = await req.json();
       announcement = String(body.announcement ?? "");
-      recent = parseRecent(body.recent_messages);
+      recent = parseRecent(body.thread ?? body.recent_messages);
+      source = String(body.source ?? "").slice(0, 40);
+      sourceId = String(body.source_id ?? "").slice(0, 120);
+      sourceName = String(body.source_name ?? "").slice(0, 120);
     } else {
       const form = await req.formData();
       announcement = String(form.get("announcement") ?? "");
@@ -390,6 +395,15 @@ Deno.serve(async (req) => {
     if (announcement.length > MAX_TEXT) throw new PostError(`Keep the announcement under ${MAX_TEXT} characters.`);
 
     const db = createClient(Deno.env.get("SUPABASE_URL")!, serverKey(), { auth: { persistSession: false } });
+
+    // One decision per chat message: answer before any lookup or AI call.
+    if (source && sourceId) {
+      const { data: seen } = await db.from("events").select("title, club, event_date, start_time, place_name, status, created_at")
+        .eq("source", source).eq("source_id", sourceId).limit(1).maybeSingle();
+      if (seen) {
+        return reply(200, { ok: true, status: "duplicate", already_read: true, message: MESSAGES.duplicate, reasons: ["This chat message was already read."], event: seen });
+      }
+    }
 
     // Spending guard.
     const since = new Date(Date.now() - 86400000).toISOString();
@@ -428,6 +442,9 @@ Deno.serve(async (req) => {
       // One live post per date + start time + place. The database enforces it with a unique index.
       dedupe_key: status !== "rejected" && eventDate && startTime && placeCode ? `${eventDate}|${startTime}|${placeCode}` : null,
       ai_model: ai === "claude" ? CLAUDE_MODEL : OPENAI_MODEL,
+      source,
+      source_id: sourceId,
+      source_name: sourceName,
       looked_at: mem.looked,
       replaces_id: earlier?.id ?? null,
     };
@@ -444,6 +461,9 @@ Deno.serve(async (req) => {
       await db.from("events").update({ status: earlier!.status, status_reason: "" }).eq("id", earlier!.id);
     }
     if (error) {
+      if (error.code === "23505" && /events_one_per_message/.test(error.message ?? "")) {
+        return reply(200, { ok: true, status: "duplicate", already_read: true, message: MESSAGES.duplicate, reasons: ["This chat message was already read."], event: row });
+      }
       if (error.code === "23505") {
         const { data: existing } = await db.from("events")
           .select("title, club, event_date, start_time, place_name, status, created_at")
